@@ -5,6 +5,7 @@ import 'package:flame_forge2d/flame_forge2d.dart';
 import 'package:flutter/material.dart';
 
 import 'body_component_with_user_data.dart';
+import 'game.dart';
 
 const enemySize = 5.0;
 
@@ -31,7 +32,7 @@ enum EnemyColor {
 }
 
 class Enemy extends BodyComponentWithUserData with ContactCallbacks {
-  Enemy(Vector2 position, Sprite sprite)
+  Enemy(Vector2 position, Sprite sprite, {this.pointValue = 100})
     : super(
         renderBody: false,
         bodyDef: BodyDef()
@@ -53,24 +54,39 @@ class Enemy extends BodyComponentWithUserData with ContactCallbacks {
         ],
       );
 
+  final int pointValue;
+
   @override
   void beginContact(Object other, Contact contact) {
     var interceptVelocity =
         (contact.bodyA.linearVelocity - contact.bodyB.linearVelocity).length
             .abs();
+    
+    // Marcar como golpeado si fue con suficiente fuerza
     if (interceptVelocity > 35) {
+      _hitByPlayer = true;
+      
+      // Dar puntos al juego
+      final gameInstance = findParent<MyPhysicsGame>();
+      if (gameInstance != null) {
+        gameInstance.score += pointValue;
+      }
       removeFromParent();
     }
 
     super.beginContact(other, contact);
   }
 
+  bool _hitByPlayer = false;
+
   @override
   void update(double dt) {
     super.update(dt);
 
-    if (position.x > camera.visibleWorldRect.right + 10 ||
-        position.x < camera.visibleWorldRect.left - 10) {
+    // Solo eliminar si fue golpeado por el jugador Y salió de la pantalla
+    if (_hitByPlayer &&
+        (position.x > camera.visibleWorldRect.right + 10 ||
+            position.x < camera.visibleWorldRect.left - 10)) {
       removeFromParent();
     }
   }
