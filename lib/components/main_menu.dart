@@ -1,9 +1,10 @@
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
-import 'package:flutter/painting.dart';
+import 'package:flutter/material.dart';
 
 import 'game.dart';
+import 'shop_menu.dart';
 
 class MainMenu extends PositionComponent with TapCallbacks, HasGameReference<MyPhysicsGame> {
   late final TextComponent _titleText;
@@ -89,12 +90,45 @@ class MainMenu extends PositionComponent with TapCallbacks, HasGameReference<MyP
     );
     add(_subtitleText);
 
+    // Mostrar monedas
+    add(
+      TextComponent(
+        text: '💰 ${game.coins}',
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFFFD700),
+            shadows: [
+              Shadow(
+                color: Color(0xFF000000),
+                offset: Offset(2, 2),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+        ),
+        anchor: Anchor.topRight,
+        position: Vector2(size.x - 20, 20),
+      ),
+    );
+
     // Botón de jugar
     _playButton = PlayButton(
-      position: Vector2(size.x / 2, size.y * 0.6),
+      position: Vector2(size.x / 2, size.y * 0.55),
       onPressed: _startGame,
     );
     add(_playButton);
+
+    // Botón de tienda
+    add(
+      MenuButton(
+        text: '🛒 TIENDA',
+        position: Vector2(size.x / 2, size.y * 0.7),
+        color: const Color(0xFF673AB7),
+        onPressed: _openShop,
+      ),
+    );
 
     // Instrucciones
     add(
@@ -149,6 +183,90 @@ class MainMenu extends PositionComponent with TapCallbacks, HasGameReference<MyP
     // Simplemente remover y empezar el juego
     removeFromParent();
     game.startGame();
+  }
+
+  void _openShop() {
+    if (_isLoading) return;
+    _isLoading = true;
+
+    removeFromParent();
+    game.camera.viewport.add(
+      ShopMenu(
+        onBack: () {
+          game.camera.viewport.children.whereType<ShopMenu>().forEach((s) => s.removeFromParent());
+          game.camera.viewport.add(MainMenu());
+        },
+      ),
+    );
+  }
+}
+
+class MenuButton extends PositionComponent with TapCallbacks {
+  final String text;
+  final Color color;
+  final VoidCallback onPressed;
+
+  MenuButton({
+    required this.text,
+    required Vector2 position,
+    required this.color,
+    required this.onPressed,
+  }) : super(
+          position: position,
+          size: Vector2(280, 70),
+          anchor: Anchor.center,
+        );
+
+  @override
+  Future<void> onLoad() async {
+    await super.onLoad();
+
+    // Fondo
+    add(
+      RectangleComponent(
+        size: size,
+        paint: Paint()..color = color,
+      ),
+    );
+
+    // Borde
+    add(
+      RectangleComponent(
+        size: size,
+        paint: Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      ),
+    );
+
+    // Texto
+    add(
+      TextComponent(
+        text: text,
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFFFFFFF),
+            shadows: [
+              Shadow(
+                color: Color(0xFF000000),
+                offset: Offset(2, 2),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+        ),
+        anchor: Anchor.center,
+        position: size / 2,
+      ),
+    );
+  }
+
+  @override
+  void onTapDown(TapDownEvent event) {
+    onPressed();
   }
 }
 

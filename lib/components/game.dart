@@ -9,12 +9,14 @@ import 'package:flutter/material.dart';
 import 'background.dart';
 import 'brick.dart';
 import 'enemy.dart';
+import 'exit_button.dart';
 import 'game_result_overlay.dart';
 import 'ground.dart';
 import 'invisible_wall.dart';
 import 'main_menu.dart';
 import 'player.dart';
 import 'score_display.dart';
+import 'shop_menu.dart';
 
 class MyPhysicsGame extends Forge2DGame {
   MyPhysicsGame()
@@ -32,6 +34,10 @@ class MyPhysicsGame extends Forge2DGame {
   final int maxAttempts = 10;
   bool gameEnded = false;
   bool gameStarted = false;
+  
+  // Sistema de monedas y power-ups
+  int coins = 100; // Empezamos con 100 monedas
+  PowerUpType? activePowerUp; // Power-up actual equipado
 
   @override
   FutureOr<void> onLoad() async {
@@ -78,9 +84,39 @@ class MyPhysicsGame extends Forge2DGame {
         getScore: () => score,
         getAttempts: () => playerAttempts,
         maxAttempts: maxAttempts,
+        getCoins: () => coins,
+        getActivePowerUp: () => activePowerUp,
         position: Vector2(camera.viewport.size.x / 2, 10),
       ),
     );
+
+    // Agregar botón de salir
+    camera.viewport.add(
+      ExitButton(
+        position: Vector2(camera.viewport.size.x - 10, 10),
+      ),
+    );
+  }
+
+  void exitToMenu() {
+    // Reiniciar variables
+    score = 0;
+    playerAttempts = 0;
+    gameEnded = false;
+    gameStarted = false;
+    enemiesFullyAdded = false;
+
+    // Limpiar todos los componentes del mundo excepto el fondo
+    final background = world.children.whereType<Background>().firstOrNull;
+    world.removeAll(world.children);
+    if (background != null) {
+      world.add(background);
+    }
+    
+    camera.viewport.removeAll(camera.viewport.children);
+
+    // Mostrar el menú principal
+    camera.viewport.add(MainMenu());
   }
 
   final _random = Random();
@@ -109,12 +145,20 @@ class MyPhysicsGame extends Forge2DGame {
     }
   }
 
-  Future<void> addPlayer() async => world.add(
-    Player(
+  Future<void> addPlayer() async {
+    final player = Player(
       Vector2(camera.visibleWorldRect.left * 2 / 3, 0),
       aliens.getSprite(PlayerColor.randomColor.fileName),
-    ),
-  );
+    );
+    
+    // Aplicar power-up si está activo
+    if (activePowerUp != null) {
+      player.powerUp = activePowerUp;
+      activePowerUp = null; // Se consume al usarse
+    }
+    
+    await world.add(player);
+  }
 
   @override
   void update(double dt) {

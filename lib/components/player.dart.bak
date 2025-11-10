@@ -45,13 +45,13 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
 
   final Sprite _sprite;
   PowerUpType? powerUp;
-  bool _powerUpUsed = false;
+  bool _hasExploded = false;
 
   @override
   Future<void> onLoad() {
-    // Agregar efecto visual del power-up
+    // Agregar efecto visual del power-up ANTES de cargar
     if (powerUp != null) {
-      _addPowerUpVisual();
+      _addPowerUpVisualEffect();
     }
 
     addAll([
@@ -71,82 +71,6 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
     return super.onLoad();
   }
 
-  void _addPowerUpVisual() {
-    Color effectColor;
-    String emoji;
-    
-    switch (powerUp!) {
-      case PowerUpType.explosive:
-        effectColor = const Color(0xFFFF5722);
-        emoji = '💣';
-        break;
-      case PowerUpType.heavy:
-        effectColor = const Color(0xFF9C27B0);
-        emoji = '⚡';
-        break;
-      case PowerUpType.splitter:
-        effectColor = const Color(0xFF2196F3);
-        emoji = '🎯';
-        break;
-    }
-    
-    // Círculo de aura brillante
-    add(
-      CircleComponent(
-        radius: playerSize * 0.8,
-        paint: Paint()
-          ..color = effectColor.withOpacity(0.3)
-          ..style = PaintingStyle.fill,
-        anchor: Anchor.center,
-        priority: -1,
-      ),
-    );
-    
-    // Borde pulsante
-    final glowRing = CircleComponent(
-      radius: playerSize * 0.65,
-      paint: Paint()
-        ..color = effectColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.4,
-      anchor: Anchor.center,
-    );
-    
-    glowRing.add(
-      ScaleEffect.by(
-        Vector2.all(1.3),
-        EffectController(
-          duration: 0.8,
-          alternate: true,
-          infinite: true,
-        ),
-      ),
-    );
-    
-    add(glowRing);
-    
-    // Emoji indicador
-    add(
-      TextComponent(
-        text: emoji,
-        textRenderer: TextPaint(
-          style: const TextStyle(
-            fontSize: 3.0,
-            shadows: [
-              Shadow(
-                color: Color(0xFF000000),
-                offset: Offset(0.2, 0.2),
-                blurRadius: 0.5,
-              ),
-            ],
-          ),
-        ),
-        anchor: Anchor.center,
-        position: Vector2(0, -playerSize * 0.8),
-      ),
-    );
-  }
-
   @override
   void update(double dt) {
     super.update(dt);
@@ -157,6 +81,194 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
 
     if (position.x > camera.visibleWorldRect.right + 10 ||
         position.x < camera.visibleWorldRect.left - 10) {
+      removeFromParent();
+    }
+  }
+
+  @override
+  void beginContact(Object other, Contact contact) {
+    super.beginContact(other, contact);
+    
+    if (body.bodyType == BodyType.dynamic && !_hasExploded) {
+      // Si es explosivo, explotar al contacto
+      if (powerUp == PowerUpType.explosive) {
+        _hasExploded = true;
+        _explode();
+      }
+      // Si es splitter, dividirse en 3 al primer contacto
+      else if (powerUp == PowerUpType.splitter) {
+        _hasExploded = true;
+        _split();
+      }
+      // Si es heavy, hacer un efecto de impacto
+      else if (powerUp == PowerUpType.heavy) {
+        _heavyImpact();
+      }
+    }
+  }
+
+  void _explode() {
+    // Crear efecto visual de explosión épico
+    world.add(
+      ExplosionEffect(
+        position: position.clone(),
+        radius: 15.0,
+      ),
+    );
+    
+    // Aplicar fuerza a objetos cercanos
+    _applyExplosionForce();
+    
+    // Eliminar el pájaro después de un pequeño delay
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (isMounted) removeFromParent();
+    });
+  }
+
+  void _applyExplosionForce() {
+    final explosionRadius = 15.0;
+    final explosionForce = 800.0;
+    
+    // Buscar todos los cuerpos dinámicos cercanos
+    for (final body in world.physicsWorld.bodies) {
+      if (body.bodyType != BodyType.dynamic) continue;
+      
+      final distance = (body.position - this.body.position).length;
+      
+      if (distance < explosionRadius && distance > 0.1) {
+        // Calcular dirección y fuerza
+        final direction = (body.position - this.body.position).normalized();
+        final forceMagnitude = explosionForce * (1 - distance / explosionRadius);
+        
+        // Aplicar impulso
+        body.applyLinearImpulse(direction * forceMagnitude);
+      }
+    }
+  }
+
+  void _split() {
+    // Crear 3 pájaros más pequeños que salen en diferentes direcciones
+    final currentVelocity = body.linearVelocity;
+    final angles = [-0.4, 0.0, 0.4]; // Ángulos de separación
+    
+    for (final angle in angles) {
+      final rotation = Matrix2.rotation(angle);
+      final newVelocity = rotation.transformed(currentVelocity);
+      
+      // Crear un mini-pájaro
+      final miniBird = _MiniPlayer(
+        position.clone(),
+        _sprite,
+        newVelocity,
+      );
+      
+      world.add(miniBird);
+    }
+    
+    // Efecto visual de división
+    world.add(
+      CircleComponent(
+        radius: 3.0,
+        paint: Paint()
+          ..color = const Color(0xFF2196F3).withOpacity(0.6)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.5,
+        position: position.clone(),
+        anchor: Anchor.center,
+      )..add(
+          ScaleEffect.to(
+            Vector2.all(10),
+            EffectController(duration: 0.3),
+            onComplete: () => parent?.children
+                .whereType<CircleComponent>()
+                .firstOrNull
+                ?.removeFromParent(),
+          ),
+        )..add(
+          OpacityEffect.fadeOut(
+            EffectController(duration: 0.3),
+          ),
+        ),
+    );
+    
+    removeFromParent();
+  }
+
+  void _heavyImpact() {
+    // Efecto visual de impacto pesado
+    world.add(
+      CircleComponent(
+        radius: 2.0,
+        paint: Paint()
+          ..color = const Color(0xFF9C27B0).withOpacity(0.8)
+          ..style = PaintingStyle.fill,
+        position: position.clone(),
+        anchor: Anchor.center,
+      )..add(
+          ScaleEffect.to(
+            Vector2.all(8),
+            EffectController(duration: 0.2),
+            onComplete: () => parent?.children
+                .whereType<CircleComponent>()
+                .firstOrNull
+                ?.removeFromParent(),
+          ),
+        )..add(
+          OpacityEffect.fadeOut(
+            EffectController(duration: 0.2),
+          ),
+        ),
+    );
+  }
+}
+
+// Mini pájaro para el efecto de división
+class _MiniPlayer extends BodyComponent {
+  _MiniPlayer(Vector2 position, Sprite sprite, Vector2 velocity)
+    : _sprite = sprite,
+      super(
+        renderBody: false,
+        bodyDef: BodyDef()
+          ..position = position
+          ..type = BodyType.dynamic
+          ..linearVelocity = velocity * 0.8, // Un poco más lento
+        fixtureDefs: [
+          FixtureDef(CircleShape()..radius = playerSize / 3)
+            ..restitution = 0.4
+            ..density = 0.5
+            ..friction = 0.5,
+        ],
+      );
+
+  final Sprite _sprite;
+
+  @override
+  Future<void> onLoad() async {
+    await super.onLoad();
+    
+    add(
+      SpriteComponent(
+        anchor: Anchor.center,
+        sprite: _sprite,
+        size: Vector2.all(playerSize * 0.6),
+        position: Vector2.zero(),
+      ),
+    );
+    
+    // Auto-remover después de 3 segundos
+    Future.delayed(const Duration(seconds: 3), () {
+      if (isMounted) removeFromParent();
+    });
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    
+    // Remover si sale de la pantalla
+    if (position.x > camera.visibleWorldRect.right + 10 ||
+        position.x < camera.visibleWorldRect.left - 10 ||
+        !body.isAwake) {
       removeFromParent();
     }
   }
@@ -193,7 +305,7 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
       // Aplicar impulso según el power-up
       var impulseMultiplier = 50.0;
       if (powerUp == PowerUpType.heavy) {
-        impulseMultiplier = 70.0; // Más fuerza
+        impulseMultiplier = 70.0; // Más fuerza con heavy
         body.fixtures.first.density = 1.5; // Más denso
       } else if (powerUp == PowerUpType.explosive) {
         impulseMultiplier = 55.0;
@@ -206,155 +318,83 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
     }
   }
 
-  @override
-  void beginContact(Object other, Contact contact) {
-    super.beginContact(other, contact);
+  void _addPowerUpVisualEffect() {
+    Color effectColor;
+    String emoji;
     
-    if (body.bodyType == BodyType.dynamic && !_powerUpUsed) {
-      // Si es explosivo, explotar al contacto
-      if (powerUp == PowerUpType.explosive) {
-        _powerUpUsed = true;
-        _explode();
-      }
-      // Si es splitter, dividirse en 3 al primer contacto
-      else if (powerUp == PowerUpType.splitter) {
-        _powerUpUsed = true;
-        _split();
-      }
+    switch (powerUp) {
+      case PowerUpType.explosive:
+        effectColor = const Color(0xFFFF5722);
+        emoji = '💣';
+        break;
+      case PowerUpType.heavy:
+        effectColor = const Color(0xFF9C27B0);
+        emoji = '⚡';
+        break;
+      case PowerUpType.splitter:
+        effectColor = const Color(0xFF2196F3);
+        emoji = '🎯';
+        break;
+      default:
+        return;
     }
-  }
-
-  void _explode() {
-    // Crear efecto visual de explosión épico
-    world.add(
-      ExplosionEffect(
-        position: position.clone(),
-        radius: 15.0,
+    
+    // Círculo de aura brillante (más grande y visible)
+    add(
+      CircleComponent(
+        radius: playerSize * 0.8,
+        paint: Paint()
+          ..color = effectColor.withOpacity(0.3)
+          ..style = PaintingStyle.fill,
+        anchor: Anchor.center,
+        priority: -1, // Detrás del sprite
       ),
     );
     
-    // Aplicar fuerza explosiva a objetos cercanos
-    final explosionRadius = 15.0;
-    final explosionForce = 800.0;
+    // Borde pulsante
+    final glowRing = CircleComponent(
+      radius: playerSize * 0.65,
+      paint: Paint()
+        ..color = effectColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.4,
+      anchor: Anchor.center,
+    );
     
-    for (final otherBody in world.physicsWorld.bodies) {
-      if (otherBody.bodyType != BodyType.dynamic) continue;
-      if (otherBody == body) continue;
-      
-      final distance = (otherBody.position - body.position).length;
-      
-      if (distance < explosionRadius && distance > 0.1) {
-        final direction = (otherBody.position - body.position).normalized();
-        final forceMagnitude = explosionForce * (1 - distance / explosionRadius);
-        otherBody.applyLinearImpulse(direction * forceMagnitude);
-      }
-    }
+    // Efecto de pulsación
+    glowRing.add(
+      ScaleEffect.by(
+        Vector2.all(1.3),
+        EffectController(
+          duration: 0.8,
+          alternate: true,
+          infinite: true,
+        ),
+      ),
+    );
     
-    // Eliminar el pájaro después de un delay
-    Future.delayed(const Duration(milliseconds: 50), () {
-      if (isMounted) removeFromParent();
-    });
-  }
-
-  void _split() {
-    final currentVelocity = body.linearVelocity;
-    final angles = [-0.5, 0.0, 0.5]; // Ángulos de separación
+    add(glowRing);
     
-    for (final angle in angles) {
-      final cosValue = cos(angle);
-      final sinValue = sin(angle);
-      final newVelocityX = currentVelocity.x * cosValue - currentVelocity.y * sinValue;
-      final newVelocityY = currentVelocity.x * sinValue + currentVelocity.y * cosValue;
-      final newVelocity = Vector2(newVelocityX, newVelocityY) * 0.8;
-      
-      // Crear mini-pájaro
-      final miniBird = _MiniPlayer(
-        position.clone(),
-        _sprite,
-        newVelocity,
-      );
-      
-      world.add(miniBird);
-    }
-    
-    // Efecto visual de división
-    world.add(
-      CircleComponent(
-        radius: 3.0,
-        paint: Paint()
-          ..color = const Color(0xFF2196F3).withOpacity(0.6)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.5,
-        position: position.clone(),
-        anchor: Anchor.center,
-      )..add(
-          ScaleEffect.to(
-            Vector2.all(10),
-            EffectController(duration: 0.3),
-          ),
-        )..add(
-          OpacityEffect.fadeOut(
-            EffectController(duration: 0.3),
-            onComplete: () {
-              // Remover el efecto visual cuando termine
-            },
+    // Emoji indicador encima del pájaro
+    add(
+      TextComponent(
+        text: emoji,
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            fontSize: 3.0,
+            shadows: [
+              Shadow(
+                color: Color(0xFF000000),
+                offset: Offset(0.2, 0.2),
+                blurRadius: 0.5,
+              ),
+            ],
           ),
         ),
-    );
-    
-    removeFromParent();
-  }
-}
-
-// Mini pájaro para el efecto de división
-class _MiniPlayer extends BodyComponent {
-  _MiniPlayer(Vector2 position, Sprite sprite, Vector2 velocity)
-    : _sprite = sprite,
-      super(
-        renderBody: false,
-        bodyDef: BodyDef()
-          ..position = position
-          ..type = BodyType.dynamic
-          ..linearVelocity = velocity,
-        fixtureDefs: [
-          FixtureDef(CircleShape()..radius = playerSize / 3)
-            ..restitution = 0.4
-            ..density = 0.5
-            ..friction = 0.5,
-        ],
-      );
-
-  final Sprite _sprite;
-
-  @override
-  Future<void> onLoad() async {
-    await super.onLoad();
-    
-    add(
-      SpriteComponent(
         anchor: Anchor.center,
-        sprite: _sprite,
-        size: Vector2.all(playerSize * 0.6),
-        position: Vector2.zero(),
+        position: Vector2(0, -playerSize * 0.8),
       ),
     );
-    
-    // Auto-remover después de 3 segundos
-    Future.delayed(const Duration(seconds: 3), () {
-      if (isMounted) removeFromParent();
-    });
-  }
-
-  @override
-  void update(double dt) {
-    super.update(dt);
-    
-    // Remover si sale de la pantalla o se duerme
-    if (position.x > camera.visibleWorldRect.right + 10 ||
-        position.x < camera.visibleWorldRect.left - 10 ||
-        !body.isAwake) {
-      removeFromParent();
-    }
   }
 }
 

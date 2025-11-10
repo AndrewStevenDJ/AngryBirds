@@ -66,10 +66,11 @@ class Enemy extends BodyComponentWithUserData with ContactCallbacks {
     if (interceptVelocity > 35) {
       _hitByPlayer = true;
       
-      // Dar puntos al juego
+      // Dar puntos y monedas al juego
       final gameInstance = findParent<MyPhysicsGame>();
       if (gameInstance != null) {
         gameInstance.score += pointValue;
+        gameInstance.coins += 10; // 10 monedas por enemigo derrotado
       }
       removeFromParent();
     }
