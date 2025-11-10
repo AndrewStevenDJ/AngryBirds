@@ -157,8 +157,12 @@ class SaveScoreDialog extends PositionComponent with HasGameReference<MyPhysicsG
     _isSaving = true;
 
     try {
+      print('Guardando score para: $_username'); // Debug
+      
       // Guardar nombre de usuario
       await UserService.saveUsername(_username);
+      
+      print('Usuario guardado, ahora guardando score...'); // Debug
       
       // Guardar puntaje en Supabase
       final success = await SupabaseService.saveScore(
@@ -168,15 +172,75 @@ class SaveScoreDialog extends PositionComponent with HasGameReference<MyPhysicsG
         coins: game.coins,
       );
 
+      print('Resultado de saveScore: $success'); // Debug
+
       if (success) {
+        print('Score guardado exitosamente, llamando onComplete'); // Debug
         onComplete();
       } else {
-        _errorMessage = 'Error al guardar el puntaje';
+        print('saveScore retornó false'); // Debug
+        _errorMessage = 'Error al guardar el puntaje en la base de datos';
         _isSaving = false;
+        
+        // Mostrar diálogo de error
+        final context = game.context;
+        if (context != null && context.mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Error'),
+              content: Text(_errorMessage ?? 'Error desconocido'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    onComplete(); // Continuar de todos modos
+                  },
+                  child: const Text('CONTINUAR'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    _isSaving = false;
+                    _saveScore(); // Reintentar
+                  },
+                  child: const Text('REINTENTAR'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          // Si no hay contexto, continuar de todos modos
+          onComplete();
+        }
       }
     } catch (e) {
+      print('Excepción al guardar score: $e'); // Debug
       _errorMessage = 'Error: $e';
       _isSaving = false;
+      
+      // Mostrar error y permitir continuar
+      final context = game.context;
+      if (context != null && context.mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Error'),
+            content: Text('No se pudo guardar el puntaje:\n$e'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  onComplete(); // Continuar de todos modos
+                },
+                child: const Text('CONTINUAR'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        onComplete();
+      }
     }
   }
 

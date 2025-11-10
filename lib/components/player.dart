@@ -49,11 +49,7 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
 
   @override
   Future<void> onLoad() {
-    // Agregar efecto visual del power-up
-    if (powerUp != null) {
-      _addPowerUpVisual();
-    }
-
+    // Agregar componente visual principal
     addAll([
       CustomPainterComponent(
         painter: _DragPainter(this),
@@ -68,83 +64,167 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
         position: Vector2(0, 0),
       ),
     ]);
+    
+    // Agregar efecto visual del power-up DESPUÉS del sprite
+    if (powerUp != null) {
+      _addPowerUpVisual();
+    }
+    
     return super.onLoad();
   }
 
   void _addPowerUpVisual() {
     Color effectColor;
     String emoji;
+    double sizeMultiplier = 1.0;
     
     switch (powerUp!) {
       case PowerUpType.explosive:
         effectColor = const Color(0xFFFF5722);
         emoji = '💣';
+        sizeMultiplier = 1.0;
         break;
       case PowerUpType.heavy:
-        effectColor = const Color(0xFF9C27B0);
-        emoji = '⚡';
+        effectColor = const Color(0xFF4A148C); // Morado oscuro
+        emoji = '🏋️';
+        sizeMultiplier = 1.5; // ¡Más grande y pesado!
         break;
       case PowerUpType.splitter:
         effectColor = const Color(0xFF2196F3);
-        emoji = '🎯';
+        emoji = '✨';
+        sizeMultiplier = 1.0;
         break;
     }
     
-    // Círculo de aura brillante
-    add(
-      CircleComponent(
-        radius: playerSize * 0.8,
-        paint: Paint()
-          ..color = effectColor.withOpacity(0.3)
-          ..style = PaintingStyle.fill,
-        anchor: Anchor.center,
-        priority: -1,
-      ),
-    );
+    // Para el power-up pesado, hacer el pájaro visualmente más grande
+    if (powerUp == PowerUpType.heavy) {
+      // Aumentar el tamaño del sprite de forma simple y directa
+      final spriteComponent = children.whereType<SpriteComponent>().firstOrNull;
+      if (spriteComponent != null) {
+        // Cambio directo de tamaño sin efectos complejos
+        spriteComponent.scale = Vector2.all(sizeMultiplier);
+      }
+    }
     
-    // Borde pulsante
-    final glowRing = CircleComponent(
-      radius: playerSize * 0.65,
-      paint: Paint()
-        ..color = effectColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.4,
-      anchor: Anchor.center,
-    );
-    
-    glowRing.add(
-      ScaleEffect.by(
-        Vector2.all(1.3),
-        EffectController(
-          duration: 0.8,
-          alternate: true,
-          infinite: true,
+    // Solo para power-ups que NO son heavy: efectos visuales ligeros
+    if (powerUp != PowerUpType.heavy) {
+      // Círculo de aura brillante
+      add(
+        CircleComponent(
+          radius: playerSize * 0.8,
+          paint: Paint()
+            ..color = effectColor.withOpacity(0.3)
+            ..style = PaintingStyle.fill,
+          anchor: Anchor.center,
+          priority: -1,
         ),
-      ),
-    );
-    
-    add(glowRing);
-    
-    // Emoji indicador
-    add(
-      TextComponent(
-        text: emoji,
-        textRenderer: TextPaint(
-          style: const TextStyle(
-            fontSize: 3.0,
-            shadows: [
-              Shadow(
-                color: Color(0xFF000000),
-                offset: Offset(0.2, 0.2),
-                blurRadius: 0.5,
-              ),
-            ],
+      );
+      
+      // Anillo pulsante simple
+      final ring = CircleComponent(
+        radius: playerSize * 0.6,
+        paint: Paint()
+          ..color = effectColor.withOpacity(0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.4,
+        anchor: Anchor.center,
+      );
+      
+      ring.add(
+        ScaleEffect.by(
+          Vector2.all(1.2),
+          EffectController(
+            duration: 1.0,
+            alternate: true,
+            infinite: true,
           ),
         ),
-        anchor: Anchor.center,
-        position: Vector2(0, -playerSize * 0.8),
+      );
+      
+      add(ring);
+    } else {
+      // Para heavy: SOLO un borde simple sin animaciones
+      add(
+        CircleComponent(
+          radius: playerSize * 0.7,
+          paint: Paint()
+            ..color = effectColor.withOpacity(0.5)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.6,
+          anchor: Anchor.center,
+        ),
+      );
+    }
+    
+    // Emoji indicador (sin animación para heavy)
+    final textComp = TextComponent(
+      text: emoji,
+      textRenderer: TextPaint(
+        style: TextStyle(
+          fontSize: powerUp == PowerUpType.heavy ? 4.0 : 3.0,
+          shadows: [
+            Shadow(
+              color: Color(0xFF000000),
+              offset: Offset(0.2, 0.2),
+              blurRadius: 0.5,
+            ),
+          ],
+        ),
       ),
+      anchor: Anchor.center,
+      position: Vector2(0, -playerSize * 0.9 * sizeMultiplier),
     );
+    
+    // Solo animar si NO es heavy
+    if (powerUp != PowerUpType.heavy) {
+      textComp.add(
+        ScaleEffect.by(
+          Vector2.all(1.15),
+          EffectController(
+            duration: 0.7,
+            alternate: true,
+            infinite: true,
+          ),
+        ),
+      );
+    }
+    
+    add(textComp);
+    
+    // Efecto especial para splitter: Rastro de clones
+    if (powerUp == PowerUpType.splitter) {
+      _addTrailEffect();
+    }
+  }
+  
+  int _trailCount = 0;
+  void _addTrailEffect() {
+    // Agregar efecto de rastro de imágenes fantasma (limitado)
+    if (_trailCount > 30) return; // Limitar el número de trails
+    
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (isMounted && body.bodyType == BodyType.dynamic && _trailCount < 30) {
+        _trailCount++;
+        final trail = SpriteComponent(
+          anchor: Anchor.center,
+          sprite: _sprite,
+          size: Vector2.all(playerSize * 0.8),
+          position: position.clone(),
+        );
+        
+        trail.paint = Paint()..color = const Color(0xFF2196F3).withOpacity(0.4);
+        
+        trail.add(
+          OpacityEffect.fadeOut(
+            EffectController(duration: 0.3),
+            onComplete: () => trail.removeFromParent(),
+          ),
+        );
+        
+        world.add(trail);
+        _addTrailEffect(); // Recursivo para efecto continuo (con límite)
+      }
+    });
   }
 
   @override
@@ -188,21 +268,73 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
           .whereType<CustomPainterComponent>()
           .firstOrNull
           ?.removeFromParent();
-      body.setType(BodyType.dynamic);
-      
-      // Aplicar impulso según el power-up
+      // Configurar propiedades físicas ANTES de cambiar a dynamic
       var impulseMultiplier = 50.0;
       if (powerUp == PowerUpType.heavy) {
-        impulseMultiplier = 70.0; // Más fuerza
-        body.fixtures.first.density = 1.5; // Más denso
+        impulseMultiplier = 80.0; // Mucha más fuerza para compensar el peso
+        // Configurar densidad y restitución antes de activar
+        final fixture = body.fixtures.first;
+        body.destroyFixture(fixture);
+        body.createFixture(
+          FixtureDef(CircleShape()..radius = playerSize / 2)
+            ..restitution = 0.2
+            ..density = 2.5
+            ..friction = 0.5,
+        );
       } else if (powerUp == PowerUpType.explosive) {
         impulseMultiplier = 55.0;
       } else if (powerUp == PowerUpType.splitter) {
         impulseMultiplier = 52.0;
       }
       
+      body.setType(BodyType.dynamic);
+      
+      // Efectos visuales después de activar (MUY reducidos)
+      if (powerUp == PowerUpType.heavy) {
+        // Sin efectos visuales para heavy, solo físicos
+      } else if (powerUp == PowerUpType.explosive) {
+        // Chispas al lanzar (reducidas)
+        for (int i = 0; i < 3; i++) {
+          final spark = CircleComponent(
+            radius: 0.3,
+            paint: Paint()..color = const Color(0xFFFF5722),
+            position: position.clone(),
+            anchor: Anchor.center,
+          );
+          
+          final angle = (i / 3) * 2 * pi;
+          spark.add(
+            MoveEffect.by(
+              Vector2(cos(angle) * 2.5, sin(angle) * 2.5),
+              EffectController(duration: 0.25),
+            ),
+          );
+          spark.add(
+            OpacityEffect.fadeOut(
+              EffectController(duration: 0.25),
+              onComplete: () => spark.removeFromParent(),
+            ),
+          );
+          
+          world.add(spark);
+        }
+      } else if (powerUp == PowerUpType.splitter) {
+        // Iniciar efecto de rastro
+        _addTrailEffect();
+      }
+      
       body.applyLinearImpulse(_dragDelta * -impulseMultiplier);
       add(RemoveEffect(delay: 5.0));
+      
+      // Activar división automáticamente para splitter después de lanzar
+      if (powerUp == PowerUpType.splitter) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (isMounted && !_powerUpUsed && body.bodyType == BodyType.dynamic) {
+            _powerUpUsed = true;
+            _split();
+          }
+        });
+      }
     }
   }
 
@@ -216,26 +348,116 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
         _powerUpUsed = true;
         _explode();
       }
-      // Si es splitter, dividirse en 3 al primer contacto
-      else if (powerUp == PowerUpType.splitter) {
-        _powerUpUsed = true;
-        _split();
+      // Para splitter, NO dividirse al impactar
+      // (Se divide automáticamente 0.3s después de lanzar)
+      else if (powerUp == PowerUpType.heavy) {
+        // Efecto visual de impacto pesado
+        _heavyImpactEffect();
       }
     }
   }
-
-  void _explode() {
-    // Crear efecto visual de explosión épico
-    world.add(
-      ExplosionEffect(
-        position: position.clone(),
-        radius: 15.0,
+  
+  void _heavyImpactEffect() {
+    // Efecto de onda de choque simple (solo 1)
+    final shockwave = CircleComponent(
+      radius: playerSize * 0.5,
+      paint: Paint()
+        ..color = const Color(0xFF4A148C).withOpacity(0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.6,
+      position: position.clone(),
+      anchor: Anchor.center,
+    );
+    
+    shockwave.add(
+      ScaleEffect.to(
+        Vector2.all(10),
+        EffectController(duration: 0.4),
+      ),
+    );
+    shockwave.add(
+      OpacityEffect.fadeOut(
+        EffectController(duration: 0.4),
+        onComplete: () => shockwave.removeFromParent(),
       ),
     );
     
-    // Aplicar fuerza explosiva a objetos cercanos
-    final explosionRadius = 15.0;
-    final explosionForce = 800.0;
+    world.add(shockwave);
+  }
+
+  void _explode() {
+    // Crear efecto visual de explosión épico y grande
+    world.add(
+      ExplosionEffect(
+        position: position.clone(),
+        radius: 20.0, // Radio más grande
+      ),
+    );
+    
+    // Múltiples anillos de explosión
+    for (int i = 0; i < 5; i++) {
+      final ring = CircleComponent(
+        radius: 2.0 + i * 1.5,
+        paint: Paint()
+          ..color = Color.lerp(
+            const Color(0xFFFF5722),
+            const Color(0xFFFFEB3B),
+            i / 5,
+          )!.withOpacity(0.8)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
+        position: position.clone(),
+        anchor: Anchor.center,
+      );
+      
+      Future.delayed(Duration(milliseconds: i * 50), () {
+        ring.add(
+          ScaleEffect.to(
+            Vector2.all(12),
+            EffectController(duration: 0.6),
+          ),
+        );
+        ring.add(
+          OpacityEffect.fadeOut(
+            EffectController(duration: 0.6),
+            onComplete: () => ring.removeFromParent(),
+          ),
+        );
+        world.add(ring);
+      });
+    }
+    
+    // Chispas explosivas en todas direcciones
+    for (int i = 0; i < 20; i++) {
+      final angle = (i / 20) * 2 * pi;
+      final spark = CircleComponent(
+        radius: 0.5,
+        paint: Paint()..color = i % 2 == 0 
+          ? const Color(0xFFFF5722) 
+          : const Color(0xFFFFEB3B),
+        position: position.clone(),
+        anchor: Anchor.center,
+      );
+      
+      spark.add(
+        MoveEffect.by(
+          Vector2(cos(angle) * 8, sin(angle) * 8),
+          EffectController(duration: 0.5),
+        ),
+      );
+      spark.add(
+        OpacityEffect.fadeOut(
+          EffectController(duration: 0.5),
+          onComplete: () => spark.removeFromParent(),
+        ),
+      );
+      
+      world.add(spark);
+    }
+    
+    // Aplicar fuerza explosiva masiva a objetos cercanos
+    final explosionRadius = 20.0;
+    final explosionForce = 1200.0; // Más fuerza
     
     for (final otherBody in world.physicsWorld.bodies) {
       if (otherBody.bodyType != BodyType.dynamic) continue;
@@ -247,67 +469,146 @@ class Player extends BodyComponentWithUserData with DragCallbacks, ContactCallba
         final direction = (otherBody.position - body.position).normalized();
         final forceMagnitude = explosionForce * (1 - distance / explosionRadius);
         otherBody.applyLinearImpulse(direction * forceMagnitude);
+        // Agregar rotación para efecto más dramático
+        otherBody.applyAngularImpulse(forceMagnitude * 0.1 * (Random().nextBool() ? 1 : -1));
       }
     }
     
     // Eliminar el pájaro después de un delay
-    Future.delayed(const Duration(milliseconds: 50), () {
+    Future.delayed(const Duration(milliseconds: 100), () {
       if (isMounted) removeFromParent();
     });
   }
 
   void _split() {
     final currentVelocity = body.linearVelocity;
-    final angles = [-0.5, 0.0, 0.5]; // Ángulos de separación
+    final angles = [-0.6, 0.0, 0.6]; // Ángulos de separación más amplios
     
-    for (final angle in angles) {
+    // Efecto visual de explosión azul brillante
+    for (int i = 0; i < 3; i++) {
+      final burst = CircleComponent(
+        radius: 2.0,
+        paint: Paint()
+          ..color = const Color(0xFF2196F3).withOpacity(0.8 - i * 0.2)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8,
+        position: position.clone(),
+        anchor: Anchor.center,
+      );
+      
+      Future.delayed(Duration(milliseconds: i * 50), () {
+        burst.add(
+          ScaleEffect.to(
+            Vector2.all(15),
+            EffectController(duration: 0.4),
+          ),
+        );
+        burst.add(
+          OpacityEffect.fadeOut(
+            EffectController(duration: 0.4),
+            onComplete: () => burst.removeFromParent(),
+          ),
+        );
+        world.add(burst);
+      });
+    }
+    
+    // Crear 3 mini-pájaros con trayectorias distintas
+    for (int i = 0; i < angles.length; i++) {
+      final angle = angles[i];
       final cosValue = cos(angle);
       final sinValue = sin(angle);
       final newVelocityX = currentVelocity.x * cosValue - currentVelocity.y * sinValue;
       final newVelocityY = currentVelocity.x * sinValue + currentVelocity.y * cosValue;
-      final newVelocity = Vector2(newVelocityX, newVelocityY) * 0.8;
+      final newVelocity = Vector2(newVelocityX, newVelocityY) * 0.9; // Mantener más velocidad
       
-      // Crear mini-pájaro
+      // Pequeña separación inicial en posición
+      final offsetPos = position.clone() + Vector2(
+        cos(angle) * 1.5,
+        sin(angle) * 1.5,
+      );
+      
+      // Crear mini-pájaro con efecto de estrella
       final miniBird = _MiniPlayer(
-        position.clone(),
+        offsetPos,
         _sprite,
         newVelocity,
       );
       
-      world.add(miniBird);
+      // Agregar partículas de rastro a cada mini-pájaro
+      Future.delayed(Duration(milliseconds: i * 50), () {
+        world.add(miniBird);
+        
+        // Estrella brillante en el momento de la división
+        for (int j = 0; j < 8; j++) {
+          final sparkAngle = (j / 8) * 2 * pi;
+          final sparkle = CircleComponent(
+            radius: 0.3,
+            paint: Paint()..color = const Color(0xFF64B5F6),
+            position: offsetPos.clone(),
+            anchor: Anchor.center,
+          );
+          
+          sparkle.add(
+            MoveEffect.by(
+              Vector2(cos(sparkAngle) * 4, sin(sparkAngle) * 4),
+              EffectController(duration: 0.3),
+            ),
+          );
+          sparkle.add(
+            OpacityEffect.fadeOut(
+              EffectController(duration: 0.3),
+              onComplete: () => sparkle.removeFromParent(),
+            ),
+          );
+          
+          world.add(sparkle);
+        }
+      });
     }
     
-    // Efecto visual de división
-    world.add(
-      CircleComponent(
-        radius: 3.0,
-        paint: Paint()
-          ..color = const Color(0xFF2196F3).withOpacity(0.6)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.5,
-        position: position.clone(),
-        anchor: Anchor.center,
-      )..add(
-          ScaleEffect.to(
-            Vector2.all(10),
-            EffectController(duration: 0.3),
-          ),
-        )..add(
-          OpacityEffect.fadeOut(
-            EffectController(duration: 0.3),
-            onComplete: () {
-              // Remover el efecto visual cuando termine
-            },
-          ),
+    // Texto visual "SPLIT!" 
+    final splitText = TextComponent(
+      text: '✨ SPLIT! ✨',
+      textRenderer: TextPaint(
+        style: const TextStyle(
+          fontSize: 3.0,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF2196F3),
+          shadows: [
+            Shadow(
+              color: Color(0xFFFFFFFF),
+              offset: Offset(0, 0),
+              blurRadius: 1.0,
+            ),
+          ],
         ),
+      ),
+      position: position.clone() + Vector2(0, -5),
+      anchor: Anchor.center,
     );
+    
+    splitText.add(
+      MoveEffect.by(
+        Vector2(0, -3),
+        EffectController(duration: 0.6),
+      ),
+    );
+    splitText.add(
+      OpacityEffect.fadeOut(
+        EffectController(duration: 0.6),
+        onComplete: () => splitText.removeFromParent(),
+      ),
+    );
+    
+    world.add(splitText);
     
     removeFromParent();
   }
 }
 
 // Mini pájaro para el efecto de división
-class _MiniPlayer extends BodyComponent {
+class _MiniPlayer extends BodyComponent with ContactCallbacks {
   _MiniPlayer(Vector2 position, Sprite sprite, Vector2 velocity)
     : _sprite = sprite,
       super(
@@ -317,9 +618,9 @@ class _MiniPlayer extends BodyComponent {
           ..type = BodyType.dynamic
           ..linearVelocity = velocity,
         fixtureDefs: [
-          FixtureDef(CircleShape()..radius = playerSize / 3)
-            ..restitution = 0.4
-            ..density = 0.5
+          FixtureDef(CircleShape()..radius = playerSize / 2.5)
+            ..restitution = 0.5
+            ..density = 0.65 // Más denso para más impacto
             ..friction = 0.5,
         ],
       );
@@ -330,19 +631,100 @@ class _MiniPlayer extends BodyComponent {
   Future<void> onLoad() async {
     await super.onLoad();
     
+    // Sprite con aura azul
     add(
-      SpriteComponent(
+      CircleComponent(
+        radius: playerSize * 0.4,
+        paint: Paint()
+          ..color = const Color(0xFF2196F3).withOpacity(0.4)
+          ..style = PaintingStyle.fill,
         anchor: Anchor.center,
-        sprite: _sprite,
-        size: Vector2.all(playerSize * 0.6),
-        position: Vector2.zero(),
+        priority: -1,
       ),
     );
     
-    // Auto-remover después de 3 segundos
-    Future.delayed(const Duration(seconds: 3), () {
-      if (isMounted) removeFromParent();
+    final spriteComp = SpriteComponent(
+      anchor: Anchor.center,
+      sprite: _sprite,
+      size: Vector2.all(playerSize * 0.7),
+      position: Vector2.zero(),
+    );
+    
+    // Efecto de brillo pulsante
+    spriteComp.add(
+      ScaleEffect.by(
+        Vector2.all(1.15),
+        EffectController(
+          duration: 0.4,
+          alternate: true,
+          infinite: true,
+        ),
+      ),
+    );
+    
+    add(spriteComp);
+    
+    // Rastro de partículas
+    _addMiniTrail();
+    
+    // Auto-remover después de 4 segundos
+    Future.delayed(const Duration(seconds: 4), () {
+      if (isMounted) {
+        // Pequeña explosión al desaparecer
+        _miniExplosion();
+        removeFromParent();
+      }
     });
+  }
+  
+  void _addMiniTrail() {
+    Future.delayed(const Duration(milliseconds: 80), () {
+      if (isMounted && body.isAwake) {
+        final trail = CircleComponent(
+          radius: playerSize * 0.2,
+          paint: Paint()..color = const Color(0xFF64B5F6).withOpacity(0.5),
+          position: position.clone(),
+          anchor: Anchor.center,
+        );
+        
+        trail.add(
+          OpacityEffect.fadeOut(
+            EffectController(duration: 0.25),
+            onComplete: () => trail.removeFromParent(),
+          ),
+        );
+        
+        world.add(trail);
+        _addMiniTrail(); // Continuar rastro
+      }
+    });
+  }
+  
+  void _miniExplosion() {
+    for (int i = 0; i < 6; i++) {
+      final angle = (i / 6) * 2 * pi;
+      final spark = CircleComponent(
+        radius: 0.25,
+        paint: Paint()..color = const Color(0xFF2196F3),
+        position: position.clone(),
+        anchor: Anchor.center,
+      );
+      
+      spark.add(
+        MoveEffect.by(
+          Vector2(cos(angle) * 3, sin(angle) * 3),
+          EffectController(duration: 0.3),
+        ),
+      );
+      spark.add(
+        OpacityEffect.fadeOut(
+          EffectController(duration: 0.3),
+          onComplete: () => spark.removeFromParent(),
+        ),
+      );
+      
+      world.add(spark);
+    }
   }
 
   @override
@@ -353,8 +735,40 @@ class _MiniPlayer extends BodyComponent {
     if (position.x > camera.visibleWorldRect.right + 10 ||
         position.x < camera.visibleWorldRect.left - 10 ||
         !body.isAwake) {
+      _miniExplosion();
       removeFromParent();
     }
+  }
+  
+  @override
+  void beginContact(Object other, Contact contact) {
+    super.beginContact(other, contact);
+    
+    // Pequeño efecto visual al impactar
+    final impact = CircleComponent(
+      radius: 1.0,
+      paint: Paint()
+        ..color = const Color(0xFF2196F3).withOpacity(0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.4,
+      position: position.clone(),
+      anchor: Anchor.center,
+    );
+    
+    impact.add(
+      ScaleEffect.to(
+        Vector2.all(5),
+        EffectController(duration: 0.2),
+      ),
+    );
+    impact.add(
+      OpacityEffect.fadeOut(
+        EffectController(duration: 0.2),
+        onComplete: () => impact.removeFromParent(),
+      ),
+    );
+    
+    world.add(impact);
   }
 }
 

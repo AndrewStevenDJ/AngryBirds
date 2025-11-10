@@ -21,11 +21,53 @@ class LeaderboardMenu extends PositionComponent with HasGameReference<MyPhysicsG
     size = viewportSize;
     position = Vector2.zero();
 
-    // Fondo
+    // Fondo gris claro neutral para máxima legibilidad
     add(
       RectangleComponent(
         size: size,
-        paint: Paint()..color = const Color(0xDD1A237E),
+        paint: Paint()..color = const Color(0xFFE0E0E0), // Gris claro
+        priority: -10, // Asegurar que esté al fondo
+      ),
+    );
+
+    // Título con fondo dorado
+    final titleBg = RectangleComponent(
+      size: Vector2(size.x * 0.7, 80),
+      position: Vector2(size.x * 0.15, 20),
+      paint: Paint()..color = const Color(0xFFFFD700),
+      priority: 0,
+    );
+    titleBg.add(
+      RectangleComponent(
+        size: Vector2(size.x * 0.7, 80),
+        paint: Paint()
+          ..color = const Color(0xFFFFA000)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      ),
+    );
+    add(titleBg);
+
+    add(
+      TextComponent(
+        text: 'TOP 10 JUGADORES',
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            fontSize: 48,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF000000),
+            shadows: [
+              Shadow(
+                color: Color(0x40000000),
+                offset: Offset(2, 2),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+        ),
+        anchor: Anchor.center,
+        position: Vector2(size.x / 2, 60),
+        priority: 1,
       ),
     );
 
@@ -37,13 +79,36 @@ class LeaderboardMenu extends PositionComponent with HasGameReference<MyPhysicsG
       ),
     );
 
-    // Cargar puntajes
-    _loadScores();
+    // Mostrar mensaje de carga
+    add(
+      TextComponent(
+        text: 'Cargando...',
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1976D2),
+          ),
+        ),
+        anchor: Anchor.center,
+        position: Vector2(size.x / 2, size.y / 2),
+        priority: 1,
+      ),
+    );
+
+    // Cargar puntajes de forma asíncrona
+    _loadScores().then((_) {
+      // Limpiar mensaje de carga
+      children.whereType<TextComponent>().where((c) => c.text == 'Cargando...').forEach((c) => c.removeFromParent());
+      _renderScores();
+    });
   }
 
   Future<void> _loadScores() async {
     try {
+      print('Cargando scores...'); // Debug
       _scores = await SupabaseService.getTopScores(limit: 10);
+      print('Scores cargados: ${_scores.length}'); // Debug
       _isLoading = false;
     } catch (e) {
       print('Error al cargar leaderboard: $e');
@@ -51,45 +116,60 @@ class LeaderboardMenu extends PositionComponent with HasGameReference<MyPhysicsG
     }
   }
 
-  @override
-  void render(Canvas canvas) {
-    super.render(canvas);
-
-    // Título
-    _drawText(
-      canvas,
-      '🏆 TOP 10 JUGADORES',
-      Vector2(size.x / 2, 60),
-      Colors.yellow,
-      48,
-      FontWeight.bold,
-    );
-
+  void _renderScores() {
     if (_isLoading) {
-      _drawText(
-        canvas,
-        'Cargando...',
-        Vector2(size.x / 2, size.y / 2),
-        Colors.white,
-        24,
-        FontWeight.normal,
+      add(
+        TextComponent(
+          text: 'Cargando...',
+          textRenderer: TextPaint(
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1976D2),
+            ),
+          ),
+          anchor: Anchor.center,
+          position: Vector2(size.x / 2, size.y / 2),
+          priority: 1,
+        ),
       );
       return;
     }
 
     if (_scores.isEmpty) {
-      _drawText(
-        canvas,
-        'No hay puntajes aún',
-        Vector2(size.x / 2, size.y / 2),
-        Colors.white70,
-        20,
-        FontWeight.normal,
+      add(
+        TextComponent(
+          text: 'No hay puntajes aún',
+          textRenderer: TextPaint(
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF757575),
+            ),
+          ),
+          anchor: Anchor.center,
+          position: Vector2(size.x / 2, size.y / 2 - 20),
+          priority: 1,
+        ),
+      );
+      add(
+        TextComponent(
+          text: '¡Sé el primero en jugar!',
+          textRenderer: TextPaint(
+            style: const TextStyle(
+              fontSize: 20,
+              color: Color(0xFF1976D2),
+            ),
+          ),
+          anchor: Anchor.center,
+          position: Vector2(size.x / 2, size.y / 2 + 20),
+          priority: 1,
+        ),
       );
       return;
     }
 
-    // Dibujar lista de puntajes
+    // Renderizar cada score
     double startY = 140;
     for (var i = 0; i < _scores.length; i++) {
       final score = _scores[i];
@@ -100,108 +180,108 @@ class LeaderboardMenu extends PositionComponent with HasGameReference<MyPhysicsG
 
       // Medalla para top 3
       String medal = '';
-      Color rankColor = Colors.white;
+      Color rankColor = Colors.grey.shade800;
       if (position == 1) {
-        medal = '🥇';
+        medal = '1º ';
         rankColor = const Color(0xFFFFD700);
       } else if (position == 2) {
-        medal = '🥈';
+        medal = '2º ';
         rankColor = const Color(0xFFC0C0C0);
       } else if (position == 3) {
-        medal = '🥉';
+        medal = '3º ';
         rankColor = const Color(0xFFCD7F32);
       }
 
+      final rowY = startY + (i * 55);
+
       // Fondo de la fila
-      final rowRect = Rect.fromLTWH(
-        size.x * 0.1,
-        startY + (i * 50) - 20,
-        size.x * 0.8,
-        45,
+      final rowBg = RectangleComponent(
+        size: Vector2(size.x * 0.8, 45),
+        position: Vector2(size.x * 0.1, rowY - 20),
+        paint: Paint()..color = position <= 3 
+          ? Colors.white.withOpacity(0.95)
+          : const Color(0xFFF5F5F5),
+        priority: 0,
       );
-      
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rowRect, const Radius.circular(8)),
-        Paint()..color = Colors.black.withOpacity(0.3),
+      rowBg.add(
+        RectangleComponent(
+          size: Vector2(size.x * 0.8, 45),
+          paint: Paint()
+            ..color = position <= 3 ? rankColor : Colors.grey.shade400
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        ),
       );
+      add(rowBg);
 
       // Posición
-      _drawText(
-        canvas,
-        '$medal$position.',
-        Vector2(size.x * 0.15, startY + (i * 50)),
-        rankColor,
-        20,
-        FontWeight.bold,
+      add(
+        TextComponent(
+          text: '$medal$position.',
+          textRenderer: TextPaint(
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: position <= 3 ? rankColor : Colors.grey.shade800,
+            ),
+          ),
+          anchor: Anchor.centerLeft,
+          position: Vector2(size.x * 0.15, rowY),
+          priority: 1,
+        ),
       );
 
-      // Nombre de usuario
-      _drawText(
-        canvas,
-        username,
-        Vector2(size.x * 0.35, startY + (i * 50)),
-        Colors.white,
-        20,
-        FontWeight.normal,
+      // Nombre
+      add(
+        TextComponent(
+          text: username,
+          textRenderer: TextPaint(
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF212121),
+            ),
+          ),
+          anchor: Anchor.centerLeft,
+          position: Vector2(size.x * 0.28, rowY),
+          priority: 1,
+        ),
       );
 
       // Puntos
-      _drawText(
-        canvas,
-        '$points pts',
-        Vector2(size.x * 0.65, startY + (i * 50)),
-        Colors.yellow,
-        20,
-        FontWeight.bold,
+      add(
+        TextComponent(
+          text: '$points pts',
+          textRenderer: TextPaint(
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFFF6F00),
+            ),
+          ),
+          anchor: Anchor.centerLeft,
+          position: Vector2(size.x * 0.6, rowY),
+          priority: 1,
+        ),
       );
 
       // Estrellas
-      _drawText(
-        canvas,
-        '⭐' * stars,
-        Vector2(size.x * 0.85, startY + (i * 50)),
-        Colors.yellow,
-        18,
-        FontWeight.normal,
+      add(
+        TextComponent(
+          text: '$stars★',
+          textRenderer: TextPaint(
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFFFD700),
+            ),
+          ),
+          anchor: Anchor.centerLeft,
+          position: Vector2(size.x * 0.82, rowY),
+          priority: 1,
+        ),
       );
     }
-  }
-
-  void _drawText(
-    Canvas canvas,
-    String text,
-    Vector2 position,
-    Color color,
-    double fontSize,
-    FontWeight weight,
-  ) {
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: weight,
-          shadows: const [
-            Shadow(
-              color: Colors.black,
-              offset: Offset(2, 2),
-              blurRadius: 4,
-            ),
-          ],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        position.x - textPainter.width / 2,
-        position.y - textPainter.height / 2,
-      ),
-    );
   }
 
 }

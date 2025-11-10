@@ -16,7 +16,8 @@ Un juego de Angry Birds desarrollado con Flutter y Flame usando el motor de fís
   - 3 vidas (requiere 3 golpes para derrotarlo)
   - Indicador visual de vida restante (❤️ x3, x2, x1)
   - 2x tamaño, 5x puntos, 3x densidad
-- ✅ Enemigos caen desde arriba sin destruir las estructuras
+- ✅ Nivel pre-construido instantáneamente (sin animaciones de caída)
+- ✅ Estructuras y enemigos ya listos al empezar el nivel
 - ✅ Sistema de puntuación y estrellas (1-3 ⭐)
 - ✅ Sistema de monedas (10 monedas por enemigo, 50 por boss)
 - ✅ Tienda con 3 power-ups:

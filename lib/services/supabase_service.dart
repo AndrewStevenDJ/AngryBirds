@@ -31,16 +31,24 @@ class SupabaseService {
     required int coins,
   }) async {
     try {
-      await client.from(SupabaseConfig.scoresTable).insert({
+      print('Intentando guardar score: $username - $score puntos'); // Debug
+      
+      final data = {
         'username': username,
         'score': score,
         'stars': stars,
         'coins': coins,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      };
+      
+      print('Datos a insertar: $data'); // Debug
+      
+      await client.from(SupabaseConfig.scoresTable).insert(data);
+      
+      print('Score guardado exitosamente'); // Debug
       return true;
     } catch (e) {
       print('Error al guardar puntaje: $e');
+      print('Error completo: ${e.toString()}'); // Debug detallado
       return false;
     }
   }
@@ -50,10 +58,11 @@ class SupabaseService {
     try {
       final response = await client
           .from(SupabaseConfig.scoresTable)
-          .select()
+          .select('username, score, stars, coins, created_at')
           .order('score', ascending: false)
           .limit(limit);
       
+      print('Scores obtenidos: $response'); // Debug
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print('Error al obtener puntajes: $e');

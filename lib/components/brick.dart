@@ -2,8 +2,10 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
+import 'package:flame/effects.dart';
 import 'package:flame/extensions.dart';
 import 'package:flame_forge2d/flame_forge2d.dart';
+import 'package:flutter/material.dart';
 
 import 'body_component_with_user_data.dart';
 
@@ -247,7 +249,7 @@ Map<BrickDamage, String> brickFileNames(BrickType type, BrickSize size) {
   };
 }
 
-class Brick extends BodyComponentWithUserData {
+class Brick extends BodyComponentWithUserData with ContactCallbacks {
   Brick({
     required this.type,
     required this.size,
@@ -279,8 +281,10 @@ class Brick extends BodyComponentWithUserData {
   final BrickType type;
   final BrickSize size;
   final Map<BrickDamage, Sprite> _sprites;
+  int _hitCount = 0;
 
   BrickDamage _damage;
+  
   BrickDamage get damage => _damage;
   set damage(BrickDamage value) {
     _damage = value;
@@ -298,5 +302,86 @@ class Brick extends BodyComponentWithUserData {
     );
     add(_spriteComponent);
     return super.onLoad();
+  }
+
+  @override
+  void beginContact(Object other, Contact contact) {
+    super.beginContact(other, contact);
+    
+    // Solo los bloques de madera se pueden destruir
+    if (type == BrickType.wood) {
+      // Obtener la velocidad del impacto
+      final velocity = body.linearVelocity.length;
+      
+      // Si el impacto es fuerte (velocidad > 5)
+      if (velocity > 5.0) {
+        _hitCount++;
+        
+        // Actualizar el daño visual
+        if (_hitCount == 1 && damage == BrickDamage.none) {
+          damage = BrickDamage.some;
+        } else if (_hitCount == 2 && damage == BrickDamage.some) {
+          damage = BrickDamage.lots;
+        } else if (_hitCount >= 3) {
+          // Destruir el bloque con efecto
+          _destroyBrick();
+        }
+      }
+    }
+  }
+
+  void _destroyBrick() {
+    // Efecto de destrucción con partículas de madera
+    final particleCount = 8;
+    for (int i = 0; i < particleCount; i++) {
+      final angle = (i / particleCount) * 2 * pi;
+      final particle = CircleComponent(
+        radius: 0.3,
+        paint: Paint()..color = const Color(0xFF8B4513), // Color madera
+        position: position.clone(),
+        anchor: Anchor.center,
+      );
+      
+      particle.add(
+        MoveEffect.by(
+          Vector2(cos(angle) * 4, sin(angle) * 4),
+          EffectController(duration: 0.5),
+        ),
+      );
+      particle.add(
+        OpacityEffect.fadeOut(
+          EffectController(duration: 0.5),
+          onComplete: () => particle.removeFromParent(),
+        ),
+      );
+      
+      world.add(particle);
+    }
+    
+    // Efecto de flash
+    final flash = CircleComponent(
+      radius: size.size.width / 20 * brickScale,
+      paint: Paint()..color = const Color(0xFFFFEB3B).withOpacity(0.7),
+      position: position.clone(),
+      anchor: Anchor.center,
+    );
+    
+    flash.add(
+      ScaleEffect.to(
+        Vector2.all(3),
+        EffectController(duration: 0.3),
+      ),
+    );
+    flash.add(
+      OpacityEffect.fadeOut(
+        EffectController(duration: 0.3),
+        onComplete: () => flash.removeFromParent(),
+      ),
+    );
+    
+    world.add(flash);
+    
+    // Remover el bloque
+    removeFromParent();
   }
 }

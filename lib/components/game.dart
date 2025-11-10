@@ -92,7 +92,10 @@ class MyPhysicsGame extends Forge2DGame with HasGameReference {
 
     await addGround();
     await addWalls();
-    unawaited(addBricks().then((_) => addEnemies()));
+    
+    // Construir todo el nivel instantáneamente sin delays
+    await _buildLevelInstantly();
+    
     await addPlayer();
 
     // Agregar marcador de puntuación
@@ -134,6 +137,159 @@ class MyPhysicsGame extends Forge2DGame with HasGameReference {
 
     // Mostrar el menú principal
     camera.viewport.add(MainMenu());
+  }
+
+  // Construir todo el nivel instantáneamente (bloques + enemigos)
+  Future<void> _buildLevelInstantly() async {
+    final centerX = camera.visibleWorldRect.right * 0.55;
+    final groundY = (camera.visibleWorldRect.height - groundSize) / 2;
+    
+    // Crear todos los bloques sin delay
+    switch (currentDifficulty) {
+      case LevelDifficulty.normal:
+        // Casa simple: Piso + Columnas + Techo
+        _addBrickInstant(Vector2(centerX, groundY - 1.75), BrickType.wood, BrickSize.size220x70);
+        _addBrickInstant(Vector2(centerX - 5.5, groundY - 6.5), BrickType.stone, BrickSize.size70x220);
+        _addBrickInstant(Vector2(centerX + 5.5, groundY - 6.5), BrickType.stone, BrickSize.size70x220);
+        _addBrickInstant(Vector2(centerX, groundY - 11.75), BrickType.metal, BrickSize.size220x70);
+        break;
+        
+      case LevelDifficulty.hard:
+        // Torres gemelas: Bases cuadradas + Columnas altas + Piso central + Columnas medias + Plataforma + Techo
+        // Torre izquierda
+        _addBrickInstant(Vector2(centerX - 10.5, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+        _addBrickInstant(Vector2(centerX - 10.5, groundY - 9), BrickType.stone, BrickSize.size70x220);
+        // Torre derecha
+        _addBrickInstant(Vector2(centerX + 10.5, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+        _addBrickInstant(Vector2(centerX + 10.5, groundY - 9), BrickType.stone, BrickSize.size70x220);
+        // Centro
+        _addBrickInstant(Vector2(centerX, groundY - 1.75), BrickType.glass, BrickSize.size220x70);
+        _addBrickInstant(Vector2(centerX - 3.5, groundY - 5.25), BrickType.wood, BrickSize.size70x140);
+        _addBrickInstant(Vector2(centerX + 3.5, groundY - 5.25), BrickType.wood, BrickSize.size70x140);
+        _addBrickInstant(Vector2(centerX, groundY - 8.75), BrickType.metal, BrickSize.size220x70);
+        _addBrickInstant(Vector2(centerX, groundY - 13.5), BrickType.stone, BrickSize.size220x70);
+        break;
+        
+      case LevelDifficulty.boss:
+        // Pirámide escalonada: 4 bases + 4 columnas nivel 1 + plataforma + 2 columnas nivel 2 + plataforma + columna final + techo
+        // Nivel 1 - Base ancha (4 bloques cuadrados)
+        _addBrickInstant(Vector2(centerX - 10.5, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+        _addBrickInstant(Vector2(centerX - 3.5, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+        _addBrickInstant(Vector2(centerX + 3.5, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+        _addBrickInstant(Vector2(centerX + 10.5, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+        // Columnas nivel 1
+        _addBrickInstant(Vector2(centerX - 10.5, groundY - 7), BrickType.stone, BrickSize.size70x140);
+        _addBrickInstant(Vector2(centerX - 3.5, groundY - 7), BrickType.stone, BrickSize.size70x140);
+        _addBrickInstant(Vector2(centerX + 3.5, groundY - 7), BrickType.stone, BrickSize.size70x140);
+        _addBrickInstant(Vector2(centerX + 10.5, groundY - 7), BrickType.stone, BrickSize.size70x140);
+        // Plataforma nivel 2
+        _addBrickInstant(Vector2(centerX, groundY - 10.5), BrickType.glass, BrickSize.size220x70);
+        // Columnas nivel 2
+        _addBrickInstant(Vector2(centerX - 3.5, groundY - 13.5), BrickType.metal, BrickSize.size70x140);
+        _addBrickInstant(Vector2(centerX + 3.5, groundY - 13.5), BrickType.metal, BrickSize.size70x140);
+        // Plataforma nivel 3
+        _addBrickInstant(Vector2(centerX, groundY - 17), BrickType.metal, BrickSize.size220x70);
+        // Columna final
+        _addBrickInstant(Vector2(centerX, groundY - 20), BrickType.stone, BrickSize.size70x140);
+        // Techo
+        _addBrickInstant(Vector2(centerX, groundY - 22.25), BrickType.stone, BrickSize.size140x70);
+        break;
+    }
+    
+    // Delay más largo para que los bloques se asienten completamente
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    
+    // Crear todos los enemigos inmediatamente en sus posiciones finales
+    final enemyCount = currentLevel.enemyCount;
+    
+    for (var i = 0; i < enemyCount; i++) {
+      double x, y;
+      
+      switch (currentDifficulty) {
+        case LevelDifficulty.normal:
+          // 3 enemigos dentro de la casa entre las columnas
+          if (i == 0) {
+            x = centerX - 2;
+            y = groundY - 4.5;
+          } else if (i == 1) {
+            x = centerX;
+            y = groundY - 4.5;
+          } else {
+            x = centerX + 2;
+            y = groundY - 4.5;
+          }
+          break;
+        
+        case LevelDifficulty.hard:
+          // 4 enemigos: 2 abajo, 2 en plataforma media
+          if (i == 0) {
+            x = centerX - 2.5;
+            y = groundY - 4.5;
+          } else if (i == 1) {
+            x = centerX + 2.5;
+            y = groundY - 4.5;
+          } else if (i == 2) {
+            x = centerX - 2.5;
+            y = groundY - 11.5;
+          } else {
+            x = centerX + 2.5;
+            y = groundY - 11.5;
+          }
+          break;
+        
+        case LevelDifficulty.boss:
+          // 5 enemigos distribuidos en la base + Boss en la cima
+          if (i == 0) {
+            x = centerX - 7;
+            y = groundY - 8.5;
+          } else if (i == 1) {
+            x = centerX - 2;
+            y = groundY - 8.5;
+          } else if (i == 2) {
+            x = centerX + 2;
+            y = groundY - 8.5;
+          } else if (i == 3) {
+            x = centerX + 7;
+            y = groundY - 8.5;
+          } else {
+            // Boss en la plataforma superior
+            x = centerX;
+            y = groundY - 19.5;
+          }
+          break;
+      }
+      
+      final isBoss = currentLevel.hasBoss && i == enemyCount - 1;
+      final enemyColor = EnemyColor.randomColor;
+      final spriteFileName = isBoss ? EnemyColor.randomBossColor.fileName : enemyColor.fileName;
+      final points = isBoss ? 500 : 100;
+      
+      await world.add(
+        Enemy(
+          Vector2(x, y),
+          aliens.getSprite(spriteFileName),
+          pointValue: points,
+          isBoss: isBoss,
+        ),
+      );
+    }
+    
+    enemiesFullyAdded = true;
+  }
+
+  void _addBrickInstant(Vector2 position, BrickType type, BrickSize size) {
+    world.add(
+      Brick(
+        type: type,
+        size: size,
+        damage: BrickDamage.none,
+        position: position,
+        sprites: brickFileNames(
+          type,
+          size,
+        ).map((key, filename) => MapEntry(key, elements.getSprite(filename))),
+      ),
+    );
   }
 
   Future<void> addBricks() async {

@@ -72,40 +72,121 @@ class LevelSelector extends PositionComponent with HasGameReference<MyPhysicsGam
     size = viewportSize;
     position = Vector2.zero();
 
-    // Fondo
+    // Fondo degradado épico
+    final gradientPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFF0D47A1), // Azul oscuro
+          Color(0xFF1976D2), // Azul medio
+          Color(0xFF42A5F5), // Azul claro
+          Color(0xFF1565C0), // Azul medio-oscuro
+        ],
+        stops: [0.0, 0.4, 0.7, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, size.x, size.y));
+
     add(
       RectangleComponent(
         size: size,
-        paint: Paint()..color = const Color(0xDD1976D2),
+        paint: gradientPaint,
       ),
     );
 
-    // Título
+    // Efectos de partículas decorativas
+    _addDecorativeElements();
+
+    // Panel superior con el título
+    add(
+      RectangleComponent(
+        size: Vector2(size.x, 180),
+        paint: Paint()..color = const Color(0x66000000),
+      ),
+    );
+
+    // Título principal con efecto brillante
+    add(
+      RectangleComponent(
+        size: Vector2(550, 90),
+        position: Vector2(size.x / 2 - 275, 45),
+        paint: Paint()
+          ..color = const Color(0xFFFF6F00)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20),
+      ),
+    );
+
+    add(
+      RectangleComponent(
+        size: Vector2(550, 90),
+        position: Vector2(size.x / 2 - 275, 45),
+        paint: Paint()..color = const Color(0xFF1A237E),
+      ),
+    );
+
+    add(
+      RectangleComponent(
+        size: Vector2(550, 90),
+        position: Vector2(size.x / 2 - 275, 45),
+        paint: Paint()
+          ..color = const Color(0xFFFFD700)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5,
+      ),
+    );
+
     add(
       TextComponent(
-        text: '🎮 SELECCIONA NIVEL',
+        text: '🎮 SELECCIONA TU DESAFÍO 🎮',
         textRenderer: TextPaint(
           style: const TextStyle(
-            fontSize: 48,
-            fontWeight: FontWeight.bold,
-            color: Colors.yellow,
+            fontSize: 42,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFFFFD700),
             shadows: [
               Shadow(
-                color: Colors.black,
+                color: Color(0xFFFF6F00),
+                offset: Offset(0, 0),
+                blurRadius: 30,
+              ),
+              Shadow(
+                color: Color(0xFF000000),
                 offset: Offset(3, 3),
-                blurRadius: 6,
+                blurRadius: 8,
               ),
             ],
           ),
         ),
         anchor: Anchor.center,
-        position: Vector2(size.x / 2, size.y * 0.15),
+        position: Vector2(size.x / 2, 90),
       ),
     );
 
-    // Botones de niveles
-    final startY = size.y * 0.3;
-    final spacing = size.y * 0.2;
+    // Subtítulo
+    add(
+      TextComponent(
+        text: 'Elige tu nivel de dificultad',
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFFFFFFF),
+            shadows: [
+              Shadow(
+                color: Color(0xFF000000),
+                offset: Offset(1, 1),
+                blurRadius: 3,
+              ),
+            ],
+          ),
+        ),
+        anchor: Anchor.center,
+        position: Vector2(size.x / 2, 145),
+      ),
+    );
+
+    // Botones de niveles con mejor espaciado
+    final startY = size.y * 0.32;
+    final spacing = size.y * 0.19;
 
     var index = 0;
     for (final entry in levelConfigs.entries) {
@@ -120,13 +201,35 @@ class LevelSelector extends PositionComponent with HasGameReference<MyPhysicsGam
       index++;
     }
 
-    // Botón volver
+    // Botón volver mejorado
     add(
       BackButton(
-        position: Vector2(size.x / 2, size.y * 0.92),
+        position: Vector2(size.x / 2, size.y * 0.93),
         onPressed: onBack,
       ),
     );
+  }
+
+  void _addDecorativeElements() {
+    // Círculos decorativos flotantes
+    final decorPositions = [
+      Vector2(50, 200),
+      Vector2(size.x - 50, 250),
+      Vector2(80, size.y - 150),
+      Vector2(size.x - 80, size.y - 200),
+    ];
+
+    for (var pos in decorPositions) {
+      add(
+        CircleComponent(
+          radius: 30,
+          position: pos,
+          paint: Paint()
+            ..color = const Color(0x22FFFFFF)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+        ),
+      );
+    }
   }
 
   void _selectLevel(LevelDifficulty difficulty) {
@@ -155,90 +258,282 @@ class LevelButton extends PositionComponent with TapCallbacks {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Fondo del botón
+    // Sombra profunda
     add(
       RectangleComponent(
         size: size,
-        paint: Paint()..color = config.color,
+        position: Vector2(5, 5),
+        paint: Paint()
+          ..color = const Color(0xAA000000)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
       ),
     );
 
-    // Borde brillante
+    // Fondo degradado del botón
+    final gradientPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          config.color,
+          config.color.withOpacity(0.7),
+          config.color.withOpacity(0.9),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.x, size.y));
+
+    add(
+      RectangleComponent(
+        size: size,
+        paint: gradientPaint,
+      ),
+    );
+
+    // Efecto de brillo superior
+    add(
+      RectangleComponent(
+        size: Vector2(size.x, size.y * 0.4),
+        paint: Paint()..color = const Color(0x33FFFFFF),
+      ),
+    );
+
+    // Borde dorado brillante
     add(
       RectangleComponent(
         size: size,
         paint: Paint()
-          ..color = Colors.white.withOpacity(0.3)
+          ..color = const Color(0xFFFFD700)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 4,
+          ..strokeWidth = 5,
       ),
     );
 
-    // Emoji
+    // Borde interno blanco
+    add(
+      RectangleComponent(
+        size: Vector2(size.x - 10, size.y - 10),
+        position: Vector2(5, 5),
+        paint: Paint()
+          ..color = const Color(0x44FFFFFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      ),
+    );
+
+    // Panel del emoji con fondo
+    add(
+      CircleComponent(
+        radius: 40,
+        position: Vector2(50, size.y / 2),
+        anchor: Anchor.center,
+        paint: Paint()
+          ..color = const Color(0x66000000)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+      ),
+    );
+
+    add(
+      CircleComponent(
+        radius: 38,
+        position: Vector2(50, size.y / 2),
+        anchor: Anchor.center,
+        paint: Paint()..color = const Color(0x88FFFFFF),
+      ),
+    );
+
+    // Emoji grande
     add(
       TextComponent(
         text: config.emoji,
         textRenderer: TextPaint(
-          style: const TextStyle(fontSize: 40),
-        ),
-        anchor: Anchor.centerLeft,
-        position: Vector2(20, size.y / 2),
-      ),
-    );
-
-    // Nombre del nivel
-    add(
-      TextComponent(
-        text: config.name,
-        textRenderer: TextPaint(
           style: const TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+            fontSize: 50,
             shadows: [
               Shadow(
-                color: Colors.black,
+                color: Color(0xFF000000),
                 offset: Offset(2, 2),
                 blurRadius: 4,
               ),
             ],
           ),
         ),
-        anchor: Anchor.centerLeft,
-        position: Vector2(80, size.y * 0.4),
+        anchor: Anchor.center,
+        position: Vector2(50, size.y / 2),
       ),
     );
 
-    // Descripción
+    // Panel de texto
+    final textStartX = 110.0;
+
+    // Nombre del nivel con efecto épico
+    add(
+      TextComponent(
+        text: config.name,
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            fontSize: 32,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFFFFFFFF),
+            shadows: [
+              Shadow(
+                color: Color(0xFFFFD700),
+                offset: Offset(0, 0),
+                blurRadius: 15,
+              ),
+              Shadow(
+                color: Color(0xFF000000),
+                offset: Offset(2, 2),
+                blurRadius: 6,
+              ),
+            ],
+          ),
+        ),
+        anchor: Anchor.centerLeft,
+        position: Vector2(textStartX, size.y * 0.38),
+      ),
+    );
+
+    // Línea decorativa
+    add(
+      RectangleComponent(
+        size: Vector2(220, 2),
+        position: Vector2(textStartX, size.y * 0.5),
+        paint: Paint()..color = const Color(0x88FFFFFF),
+      ),
+    );
+
+    // Descripción mejorada
     add(
       TextComponent(
         text: config.description,
         textRenderer: TextPaint(
           style: const TextStyle(
             fontSize: 16,
-            color: Colors.white70,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFFFFFFF),
+            shadows: [
+              Shadow(
+                color: Color(0xFF000000),
+                offset: Offset(1, 1),
+                blurRadius: 3,
+              ),
+            ],
           ),
         ),
         anchor: Anchor.centerLeft,
-        position: Vector2(80, size.y * 0.65),
+        position: Vector2(textStartX, size.y * 0.68),
       ),
     );
 
-    // Info de enemigos
+    // Panel de estadísticas
+    final statsX = size.x - 140;
+    
     add(
-      TextComponent(
-        text: '🐷 ${config.enemyCount} | 🧱 ${config.brickCount}',
-        textRenderer: TextPaint(
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        anchor: Anchor.centerRight,
-        position: Vector2(size.x - 20, size.y / 2),
+      RectangleComponent(
+        size: Vector2(120, 70),
+        position: Vector2(statsX, size.y / 2 - 35),
+        paint: Paint()..color = const Color(0x66000000),
       ),
     );
+
+    add(
+      RectangleComponent(
+        size: Vector2(120, 70),
+        position: Vector2(statsX, size.y / 2 - 35),
+        paint: Paint()
+          ..color = const Color(0xFFFFFFFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      ),
+    );
+
+    // Iconos y números
+    add(
+      TextComponent(
+        text: '🐷 ${config.enemyCount}',
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFFFFFFF),
+            shadows: [
+              Shadow(
+                color: Color(0xFF000000),
+                offset: Offset(1, 1),
+                blurRadius: 2,
+              ),
+            ],
+          ),
+        ),
+        anchor: Anchor.center,
+        position: Vector2(statsX + 60, size.y / 2 - 15),
+      ),
+    );
+
+    add(
+      TextComponent(
+        text: '🧱 ${config.brickCount}',
+        textRenderer: TextPaint(
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFFFFFFF),
+            shadows: [
+              Shadow(
+                color: Color(0xFF000000),
+                offset: Offset(1, 1),
+                blurRadius: 2,
+              ),
+            ],
+          ),
+        ),
+        anchor: Anchor.center,
+        position: Vector2(statsX + 60, size.y / 2 + 15),
+      ),
+    );
+
+    // Indicador de BOSS si aplica
+    if (config.hasBoss) {
+      add(
+        RectangleComponent(
+          size: Vector2(100, 30),
+          position: Vector2(size.x - 110, 10),
+          paint: Paint()..color = const Color(0xFFFF0000),
+        ),
+      );
+
+      add(
+        RectangleComponent(
+          size: Vector2(100, 30),
+          position: Vector2(size.x - 110, 10),
+          paint: Paint()
+            ..color = const Color(0xFFFFD700)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        ),
+      );
+
+      add(
+        TextComponent(
+          text: '👑 BOSS',
+          textRenderer: TextPaint(
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFFFFFFFF),
+              shadows: [
+                Shadow(
+                  color: Color(0xFF000000),
+                  offset: Offset(1, 1),
+                  blurRadius: 2,
+                ),
+              ],
+            ),
+          ),
+          anchor: Anchor.center,
+          position: Vector2(size.x - 60, 25),
+        ),
+      );
+    }
   }
 
   @override
@@ -278,11 +573,40 @@ class BackButton extends PositionComponent with TapCallbacks {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Fondo
+    // Sombra
     add(
       RectangleComponent(
         size: size,
-        paint: Paint()..color = const Color(0xFF607D8B),
+        position: Vector2(3, 3),
+        paint: Paint()
+          ..color = const Color(0x88000000)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      ),
+    );
+
+    // Fondo degradado
+    final gradientPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color(0xFF546E7A),
+          Color(0xFF37474F),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.x, size.y));
+
+    add(
+      RectangleComponent(
+        size: size,
+        paint: gradientPaint,
+      ),
+    );
+
+    // Brillo superior
+    add(
+      RectangleComponent(
+        size: Vector2(size.x, size.y * 0.3),
+        paint: Paint()..color = const Color(0x33FFFFFF),
       ),
     );
 
@@ -291,9 +615,9 @@ class BackButton extends PositionComponent with TapCallbacks {
       RectangleComponent(
         size: size,
         paint: Paint()
-          ..color = Colors.white
+          ..color = const Color(0xFFFFFFFF)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
+          ..strokeWidth = 3,
       ),
     );
 
@@ -303,14 +627,14 @@ class BackButton extends PositionComponent with TapCallbacks {
         text: '← VOLVER',
         textRenderer: TextPaint(
           style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFFFFFFFF),
             shadows: [
               Shadow(
-                color: Colors.black,
-                offset: Offset(1, 1),
-                blurRadius: 2,
+                color: Color(0xFF000000),
+                offset: Offset(2, 2),
+                blurRadius: 4,
               ),
             ],
           ),
