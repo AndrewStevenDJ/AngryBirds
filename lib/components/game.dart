@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flame/components.dart';
+import 'package:flame/game.dart';
 import 'package:flame_forge2d/flame_forge2d.dart';
 import 'package:flame_kenney_xml/flame_kenney_xml.dart';
 import 'package:flutter/material.dart';
 
+import '../services/user_service.dart';
 import 'background.dart';
 import 'brick.dart';
 import 'enemy.dart';
@@ -13,12 +14,14 @@ import 'exit_button.dart';
 import 'game_result_overlay.dart';
 import 'ground.dart';
 import 'invisible_wall.dart';
+import 'level_selector.dart';
 import 'main_menu.dart';
 import 'player.dart';
+import 'save_score_dialog.dart';
 import 'score_display.dart';
 import 'shop_menu.dart';
 
-class MyPhysicsGame extends Forge2DGame {
+class MyPhysicsGame extends Forge2DGame with HasGameReference {
   MyPhysicsGame()
     : super(
         gravity: Vector2(0, 10),
@@ -38,9 +41,18 @@ class MyPhysicsGame extends Forge2DGame {
   // Sistema de monedas y power-ups
   int coins = 100; // Empezamos con 100 monedas
   PowerUpType? activePowerUp; // Power-up actual equipado
+  
+  // BuildContext para mostrar diálogos
+  BuildContext? context;
+  
+  // Configuración del nivel actual
+  LevelDifficulty currentDifficulty = LevelDifficulty.normal;
+  LevelConfig get currentLevel => levelConfigs[currentDifficulty]!;
 
   @override
   FutureOr<void> onLoad() async {
+    // Cargar monedas guardadas
+    await _loadCoins();
     final backgroundImage = await images.load('colored_grass.png');
     final spriteSheets = await Future.wait([
       XmlSpriteSheet.load(
@@ -69,9 +81,14 @@ class MyPhysicsGame extends Forge2DGame {
     return super.onLoad();
   }
 
-  Future<void> startGame() async {
+  Future<void> startGame({LevelDifficulty? difficulty}) async {
     if (gameStarted) return;
     gameStarted = true;
+    
+    // Establecer dificultad
+    if (difficulty != null) {
+      currentDifficulty = difficulty;
+    }
 
     await addGround();
     await addWalls();
@@ -119,30 +136,122 @@ class MyPhysicsGame extends Forge2DGame {
     camera.viewport.add(MainMenu());
   }
 
-  final _random = Random();
-
   Future<void> addBricks() async {
-    for (var i = 0; i < 5; i++) {
-      final type = BrickType.randomType;
-      final size = BrickSize.randomSize;
-      await world.add(
-        Brick(
-          type: type,
-          size: size,
-          damage: BrickDamage.some,
-          position: Vector2(
-            camera.visibleWorldRect.right / 3 +
-                (_random.nextDouble() * 5 - 2.5),
-            0,
-          ),
-          sprites: brickFileNames(
-            type,
-            size,
-          ).map((key, filename) => MapEntry(key, elements.getSprite(filename))),
-        ),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+    // Crear estructuras tipo Angry Birds según el nivel
+    switch (currentDifficulty) {
+      case LevelDifficulty.normal:
+        await _buildSimpleStructure();
+        break;
+      case LevelDifficulty.hard:
+        await _buildMediumStructure();
+        break;
+      case LevelDifficulty.boss:
+        await _buildBossStructure();
+        break;
     }
+  }
+
+  // Estructura simple para nivel normal - Casa pequeña clásica
+  Future<void> _buildSimpleStructure() async {
+    final centerX = camera.visibleWorldRect.right * 0.55;
+    final groundY = (camera.visibleWorldRect.height - groundSize) / 2;
+
+    // PISO: Base de madera horizontal (220x70)
+    await _addBrickSpecific(Vector2(centerX, groundY - 1.75), BrickType.wood, BrickSize.size220x70);
+
+    // COLUMNAS: 2 bloques verticales de piedra (70x220) - Más altos y estables
+    await _addBrickSpecific(Vector2(centerX - 5.5, groundY - 7), BrickType.stone, BrickSize.size70x220);
+    await _addBrickSpecific(Vector2(centerX + 5.5, groundY - 7), BrickType.stone, BrickSize.size70x220);
+
+    // TECHO: Bloque horizontal de metal (220x70)
+    await _addBrickSpecific(Vector2(centerX, groundY - 12.25), BrickType.metal, BrickSize.size220x70);
+  }
+
+  // Estructura mediana para nivel difícil - Torre doble simétrica
+  Future<void> _buildMediumStructure() async {
+    final centerX = camera.visibleWorldRect.right * 0.55;
+    final groundY = (camera.visibleWorldRect.height - groundSize) / 2;
+
+    // === TORRE IZQUIERDA ===
+    // Base izquierda: bloque cuadrado de madera (140x140)
+    await _addBrickSpecific(Vector2(centerX - 10.5, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+    
+    // Columna izquierda: bloque vertical alto (70x220)
+    await _addBrickSpecific(Vector2(centerX - 10.5, groundY - 9.5), BrickType.stone, BrickSize.size70x220);
+
+    // === TORRE DERECHA (SIMÉTRICA) ===
+    // Base derecha: bloque cuadrado de madera (140x140)
+    await _addBrickSpecific(Vector2(centerX + 10.5, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+    
+    // Columna derecha: bloque vertical alto (70x220)
+    await _addBrickSpecific(Vector2(centerX + 10.5, groundY - 9.5), BrickType.stone, BrickSize.size70x220);
+
+    // === CONEXIÓN CENTRAL ===
+    // Piso central: bloque horizontal largo (220x70)
+    await _addBrickSpecific(Vector2(centerX, groundY - 1.75), BrickType.glass, BrickSize.size220x70);
+
+    // Columnas centrales: bloques verticales (70x140)
+    await _addBrickSpecific(Vector2(centerX - 3.5, groundY - 5.25), BrickType.wood, BrickSize.size70x140);
+    await _addBrickSpecific(Vector2(centerX + 3.5, groundY - 5.25), BrickType.wood, BrickSize.size70x140);
+
+    // Plataforma media: bloque horizontal (220x70)
+    await _addBrickSpecific(Vector2(centerX, groundY - 8.75), BrickType.metal, BrickSize.size220x70);
+
+    // Techo superior: bloque horizontal largo (220x70)
+    await _addBrickSpecific(Vector2(centerX, groundY - 14), BrickType.stone, BrickSize.size220x70);
+  }
+
+  // Estructura compleja para nivel boss - Castillo piramidal
+  Future<void> _buildBossStructure() async {
+    final centerX = camera.visibleWorldRect.right * 0.55;
+    final groundY = (camera.visibleWorldRect.height - groundSize) / 2;
+
+    // === NIVEL 1 (BASE) - MÁS ANCHO ===
+    // Piso base: bloques cuadrados grandes (140x140)
+    await _addBrickSpecific(Vector2(centerX - 14, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+    await _addBrickSpecific(Vector2(centerX - 7, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+    await _addBrickSpecific(Vector2(centerX + 7, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+    await _addBrickSpecific(Vector2(centerX + 14, groundY - 3.5), BrickType.wood, BrickSize.size140x140);
+
+    // Columnas nivel 1: bloques verticales (70x140)
+    await _addBrickSpecific(Vector2(centerX - 14, groundY - 7), BrickType.stone, BrickSize.size70x140);
+    await _addBrickSpecific(Vector2(centerX - 7, groundY - 7), BrickType.stone, BrickSize.size70x140);
+    await _addBrickSpecific(Vector2(centerX + 7, groundY - 7), BrickType.stone, BrickSize.size70x140);
+    await _addBrickSpecific(Vector2(centerX + 14, groundY - 7), BrickType.stone, BrickSize.size70x140);
+
+    // === NIVEL 2 (MEDIO) - MÁS ESTRECHO ===
+    // Plataforma nivel 2: bloque horizontal largo (220x70)
+    await _addBrickSpecific(Vector2(centerX, groundY - 10.5), BrickType.glass, BrickSize.size220x70);
+
+    // Columnas nivel 2: bloques verticales (70x140)
+    await _addBrickSpecific(Vector2(centerX - 7, groundY - 14), BrickType.metal, BrickSize.size70x140);
+    await _addBrickSpecific(Vector2(centerX + 7, groundY - 14), BrickType.metal, BrickSize.size70x140);
+
+    // === NIVEL 3 (CIMA) - MÁS ESTRECHO ===
+    // Plataforma nivel 3 para el Boss: bloque horizontal (220x70)
+    await _addBrickSpecific(Vector2(centerX, groundY - 17.5), BrickType.metal, BrickSize.size220x70);
+
+    // Columna central final: bloque vertical (70x140)
+    await _addBrickSpecific(Vector2(centerX, groundY - 21), BrickType.stone, BrickSize.size70x140);
+
+    // Techo final: bloque horizontal (140x70)
+    await _addBrickSpecific(Vector2(centerX, groundY - 22.75), BrickType.stone, BrickSize.size140x70);
+  }
+
+  Future<void> _addBrickSpecific(Vector2 position, BrickType type, BrickSize size) async {
+    await world.add(
+      Brick(
+        type: type,
+        size: size,
+        damage: BrickDamage.none,
+        position: position,
+        sprites: brickFileNames(
+          type,
+          size,
+        ).map((key, filename) => MapEntry(key, elements.getSprite(filename))),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 80));
   }
 
   Future<void> addPlayer() async {
@@ -198,17 +307,30 @@ class MyPhysicsGame extends Forge2DGame {
 
     final stars = _calculateStars(victory);
     
+    // Primero mostrar el diálogo de guardar puntaje
     camera.viewport.add(
-      GameResultOverlay(
-        isVictory: victory,
+      SaveScoreDialog(
         score: score,
         stars: stars,
-        position: camera.viewport.size / 2,
-        size: Vector2(
-          camera.viewport.size.x * 0.8,
-          camera.viewport.size.y * 0.6,
-        ),
-        onRestart: _restartGame,
+        onComplete: () {
+          // Después de guardar, mostrar el overlay de resultado
+          for (final dialog in camera.viewport.children.whereType<SaveScoreDialog>().toList()) {
+            dialog.removeFromParent();
+          }
+          camera.viewport.add(
+            GameResultOverlay(
+              isVictory: victory,
+              score: score,
+              stars: stars,
+              position: camera.viewport.size / 2,
+              size: Vector2(
+                camera.viewport.size.x * 0.8,
+                camera.viewport.size.y * 0.6,
+              ),
+              onRestart: _restartGame,
+            ),
+          );
+        },
       ),
     );
   }
@@ -248,19 +370,87 @@ class MyPhysicsGame extends Forge2DGame {
   var enemiesFullyAdded = false;
 
   Future<void> addEnemies() async {
-    await Future<void>.delayed(const Duration(seconds: 2));
-    for (var i = 0; i < 3; i++) {
+    // Esperar 3 segundos para que las estructuras se estabilicen completamente
+    await Future<void>.delayed(const Duration(seconds: 3));
+    final enemyCount = currentLevel.enemyCount;
+    final centerX = camera.visibleWorldRect.right * 0.55;
+    final groundY = (camera.visibleWorldRect.height - groundSize) / 2;
+    
+    for (var i = 0; i < enemyCount; i++) {
+      // Posicionar enemigos SOBRE las plataformas (Y más alto para que caigan suavemente)
+      double x, y;
+      
+      switch (currentDifficulty) {
+        case LevelDifficulty.normal:
+          // 3 enemigos caen desde muy arriba hacia dentro de la casa
+          if (i == 0) {
+            x = centerX - 2.5;
+            y = groundY - 30; // Muy alto, caerán dentro
+          } else if (i == 1) {
+            x = centerX;
+            y = groundY - 30;
+          } else {
+            x = centerX + 2.5;
+            y = groundY - 30;
+          }
+          break;
+        
+        case LevelDifficulty.hard:
+          // 4 enemigos caen desde muy arriba
+          if (i == 0) {
+            x = centerX - 3;
+            y = groundY - 30;
+          } else if (i == 1) {
+            x = centerX + 3;
+            y = groundY - 30;
+          } else if (i == 2) {
+            x = centerX - 3;
+            y = groundY - 35; // Más alto para el segundo nivel
+          } else {
+            x = centerX + 3;
+            y = groundY - 35;
+          }
+          break;
+        
+        case LevelDifficulty.boss:
+          // 5 enemigos + boss caen desde muy arriba
+          if (i == 0) {
+            x = centerX - 10.5;
+            y = groundY - 30;
+          } else if (i == 1) {
+            x = centerX - 3.5;
+            y = groundY - 30;
+          } else if (i == 2) {
+            x = centerX + 3.5;
+            y = groundY - 30;
+          } else if (i == 3) {
+            x = centerX + 10.5;
+            y = groundY - 30;
+          } else {
+            // Boss cae desde MUY alto hacia la cima
+            x = centerX;
+            y = groundY - 40;
+          }
+          break;
+      }
+      
+      // Para el nivel boss, el último enemigo es el boss
+      final isBoss = currentLevel.hasBoss && i == enemyCount - 1;
+      
+      // Seleccionar sprite y puntos según si es boss o no
+      final enemyColor = EnemyColor.randomColor;
+      final spriteFileName = isBoss ? EnemyColor.randomBossColor.fileName : enemyColor.fileName;
+      final points = isBoss ? 500 : 100;
+      
       await world.add(
         Enemy(
-          Vector2(
-            camera.visibleWorldRect.right / 3 +
-                (_random.nextDouble() * 7 - 3.5),
-            (_random.nextDouble() * 3),
-          ),
-          aliens.getSprite(EnemyColor.randomColor.fileName),
+          Vector2(x, y),
+          aliens.getSprite(spriteFileName),
+          pointValue: points,
+          isBoss: isBoss,
         ),
       );
-      await Future<void>.delayed(const Duration(seconds: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 800));
     }
     enemiesFullyAdded = true;
   }
@@ -295,5 +485,26 @@ class MyPhysicsGame extends Forge2DGame {
         size: Vector2(wallThickness, worldHeight * 2),
       ),
     ]);
+  }
+
+  Future<void> _loadCoins() async {
+    final savedCoins = await UserService.getCoins();
+    coins = savedCoins;
+  }
+
+  Future<void> _saveCoins() async {
+    await UserService.saveCoins(coins);
+  }
+
+  /// Agregar monedas y guardar automáticamente
+  void addCoins(int amount) {
+    coins += amount;
+    _saveCoins();
+  }
+
+  /// Remover monedas y guardar automáticamente
+  void removeCoins(int amount) {
+    coins -= amount;
+    _saveCoins();
   }
 }

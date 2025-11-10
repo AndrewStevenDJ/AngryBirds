@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import 'game.dart';
 import 'shop_menu.dart';
+import 'leaderboard_menu.dart';
+import 'level_selector.dart';
 
 class MainMenu extends PositionComponent with TapCallbacks, HasGameReference<MyPhysicsGame> {
   late final TextComponent _titleText;
@@ -124,9 +126,19 @@ class MainMenu extends PositionComponent with TapCallbacks, HasGameReference<MyP
     add(
       MenuButton(
         text: '🛒 TIENDA',
-        position: Vector2(size.x / 2, size.y * 0.7),
+        position: Vector2(size.x / 2, size.y * 0.65),
         color: const Color(0xFF673AB7),
         onPressed: _openShop,
+      ),
+    );
+
+    // Botón de leaderboard
+    add(
+      MenuButton(
+        text: '🏆 RANKING',
+        position: Vector2(size.x / 2, size.y * 0.78),
+        color: const Color(0xFFFF9800),
+        onPressed: _openLeaderboard,
       ),
     );
 
@@ -148,7 +160,7 @@ class MainMenu extends PositionComponent with TapCallbacks, HasGameReference<MyP
           ),
         ),
         anchor: Anchor.center,
-        position: Vector2(size.x / 2, size.y * 0.8),
+        position: Vector2(size.x / 2, size.y * 0.88),
       ),
     );
 
@@ -171,7 +183,7 @@ class MainMenu extends PositionComponent with TapCallbacks, HasGameReference<MyP
           ),
         ),
         anchor: Anchor.center,
-        position: Vector2(size.x / 2, size.y * 0.88),
+        position: Vector2(size.x / 2, size.y * 0.95),
       ),
     );
   }
@@ -180,9 +192,16 @@ class MainMenu extends PositionComponent with TapCallbacks, HasGameReference<MyP
     if (_isLoading) return;
     _isLoading = true;
 
-    // Simplemente remover y empezar el juego
+    // Abrir selector de niveles
     removeFromParent();
-    game.startGame();
+    game.camera.viewport.add(
+      LevelSelector(
+        onBack: () {
+          game.camera.viewport.children.whereType<LevelSelector>().forEach((s) => s.removeFromParent());
+          game.camera.viewport.add(MainMenu());
+        },
+      ),
+    );
   }
 
   void _openShop() {
@@ -194,6 +213,21 @@ class MainMenu extends PositionComponent with TapCallbacks, HasGameReference<MyP
       ShopMenu(
         onBack: () {
           game.camera.viewport.children.whereType<ShopMenu>().forEach((s) => s.removeFromParent());
+          game.camera.viewport.add(MainMenu());
+        },
+      ),
+    );
+  }
+
+  void _openLeaderboard() {
+    if (_isLoading) return;
+    _isLoading = true;
+
+    removeFromParent();
+    game.camera.viewport.add(
+      LeaderboardMenu(
+        onBack: () {
+          game.camera.viewport.children.whereType<LeaderboardMenu>().forEach((l) => l.removeFromParent());
           game.camera.viewport.add(MainMenu());
         },
       ),

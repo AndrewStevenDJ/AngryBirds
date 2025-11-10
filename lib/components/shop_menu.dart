@@ -145,7 +145,7 @@ class ShopMenu extends PositionComponent with HasGameReference<MyPhysicsGame> {
 
   void _purchasePowerUp(PowerUpItem powerUp) {
     if (game.coins >= powerUp.price) {
-      game.coins -= powerUp.price;
+      game.removeCoins(powerUp.price);
       game.activePowerUp = powerUp.type;
       
       // Actualizar la vista
